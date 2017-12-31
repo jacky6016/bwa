@@ -7,6 +7,7 @@
 #include "bwtsw2.h"
 #include "bwt.h"
 #include "kvec.h"
+#include "profile.h"
 
 #ifdef USE_MALLOC_WRAPPERS
 #  include "malloc_wrap.h"
@@ -273,6 +274,9 @@ static void save_narrow_hits(const bwtl_t *bwtl, bsw2entry_t *u, bwtsw2_t *b1, i
 int bsw2_resolve_duphits(const bntseq_t *bns, const bwt_t *bwt, bwtsw2_t *b, int IS)
 {
 	int i, j, n, is_rev;
+	profile_per_read_t * read_profile;
+	memset(read_profile, 0, sizeof(profile_per_read_t));
+
 	if (b->n == 0) return 0;
 	if (bwt && bns) { // convert to chromosomal coordinates if requested
 		int old_n = b->n;
@@ -291,7 +295,7 @@ int bsw2_resolve_duphits(const bntseq_t *bns, const bwt_t *bwt, bwtsw2_t *b, int
 				if (p->G == 0 && p->k == 0 && p->l == 0 && p->len == 0) continue;
 				for (k = p->k; k <= p->l; ++k) {
 					b->hits[j] = *p;
-					b->hits[j].k = bns_depos(bns, bwt_sa(bwt, k), &is_rev);
+					b->hits[j].k = bns_depos(bns, bwt_sa(bwt, k, read_profile), &is_rev);
 					b->hits[j].l = 0;
 					b->hits[j].is_rev = is_rev;
 					if (is_rev) b->hits[j].k -= p->len - 1;
@@ -299,7 +303,7 @@ int bsw2_resolve_duphits(const bntseq_t *bns, const bwt_t *bwt, bwtsw2_t *b, int
 				}
 			} else if (p->G > 0) {
 				b->hits[j] = *p;
-				b->hits[j].k = bns_depos(bns, bwt_sa(bwt, p->k), &is_rev);
+				b->hits[j].k = bns_depos(bns, bwt_sa(bwt, p->k, read_profile), &is_rev);
 				b->hits[j].l = 0;
 				b->hits[j].flag |= 1;
 				b->hits[j].is_rev = is_rev;

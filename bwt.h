@@ -30,7 +30,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
-
+#include "profile.h"
 // requirement: (OCC_INTERVAL%16 == 0); please DO NOT change this line because some part of the code assume OCC_INTERVAL=0x80
 #define OCC_INTV_SHIFT 7
 #define OCC_INTERVAL   (1LL<<OCC_INTV_SHIFT)
@@ -99,7 +99,7 @@ extern "C" {
 
 	bwtint_t bwt_occ(const bwt_t *bwt, bwtint_t k, ubyte_t c);
 	void bwt_occ4(const bwt_t *bwt, bwtint_t k, bwtint_t cnt[4]);
-	bwtint_t bwt_sa(const bwt_t *bwt, bwtint_t k);
+	bwtint_t bwt_sa(const bwt_t *bwt, bwtint_t k, profile_per_read_t *read_profile);
 
 	// more efficient version of bwt_occ/bwt_occ4 for retrieving two close Occ values
 	void bwt_gen_cnt_table(bwt_t *bwt);
@@ -118,10 +118,10 @@ extern "C" {
 	 * Given a query _q_, collect potential SMEMs covering position _x_ and store them in _mem_.
 	 * Return the end of the longest exact match starting from _x_.
 	 */
-	int bwt_smem1(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_intv, bwtintv_v *mem, bwtintv_v *tmpvec[2]);
-	int bwt_smem1a(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_intv, uint64_t max_intv, bwtintv_v *mem, bwtintv_v *tmpvec[2]);
+	int bwt_smem1(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_intv, bwtintv_v *mem, bwtintv_v *tmpvec[2], uint32_t *count);
+	int bwt_smem1a(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_intv, uint64_t max_intv, bwtintv_v *mem, bwtintv_v *tmpvec[2], uint32_t *count);
 
-	int bwt_seed_strategy1(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_len, int max_intv, bwtintv_t *mem);
+	int bwt_seed_strategy1(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_len, int max_intv, bwtintv_t *mem, uint32_t *count);
 
 #ifdef __cplusplus
 }

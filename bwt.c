@@ -83,12 +83,13 @@ void bwt_cal_sa(bwt_t *bwt, int intv)
 	bwt->sa[0] = (bwtint_t)-1; // before this line, bwt->sa[0] = bwt->seq_len
 }
 
-bwtint_t bwt_sa(const bwt_t *bwt, bwtint_t k)
+bwtint_t bwt_sa(const bwt_t *bwt, bwtint_t k, profile_per_read_t *read_profile)
 {
 	bwtint_t sa = 0, mask = bwt->sa_intv - 1;
 	while (k & mask) {
 		++sa;
 		k = bwt_invPsi(bwt, k);
+		read_profile->inv_psi++;
 	}
 	/* without setting bwt->sa[0] = -1, the following line should be
 	   changed to (sa + bwt->sa[k/bwt->sa_intv]) % (bwt->seq_len + 1) */
@@ -286,7 +287,7 @@ static void bwt_reverse_intvs(bwtintv_v *p)
 	}
 }
 // NOTE: $max_intv is not currently used in BWA-MEM
-int bwt_smem1a(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_intv, uint64_t max_intv, bwtintv_v *mem, bwtintv_v *tmpvec[2])
+int bwt_smem1a(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_intv, uint64_t max_intv, bwtintv_v *mem, bwtintv_v *tmpvec[2], uint32_t *count)
 {
 	int i, j, c, ret;
 	bwtintv_t ik, ok[4];
@@ -308,6 +309,7 @@ int bwt_smem1a(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_intv,
 		} else if (q[i] < 4) { // an A/C/G/T base
 			c = 3 - q[i]; // complement of q[i]
 			bwt_extend(bwt, &ik, ok, 0);
+			(*count)++;
 			if (ok[c].x[2] != ik.x[2]) { // change of the interval size
 				kv_push(bwtintv_t, *curr, ik);
 				if (ok[c].x[2] < min_intv) break; // the interval size is too small to be extended further
@@ -327,7 +329,10 @@ int bwt_smem1a(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_intv,
 		c = i < 0? -1 : q[i] < 4? q[i] : -1; // c==-1 if i<0 or q[i] is an ambiguous base
 		for (j = 0, curr->n = 0; j < prev->n; ++j) {
 			bwtintv_t *p = &prev->a[j];
-			if (c >= 0 && ik.x[2] >= max_intv) bwt_extend(bwt, p, ok, 1);
+			if (c >= 0 && ik.x[2] >= max_intv) {
+				 bwt_extend(bwt, p, ok, 1);
+				(*count)++;
+			}
 			if (c < 0 || ik.x[2] < max_intv || ok[c].x[2] < min_intv) { // keep the hit if reaching the beginning or an ambiguous base or the intv is small enough
 				if (curr->n == 0) { // test curr->n>0 to make sure there are no longer matches
 					if (mem->n == 0 || i + 1 < mem->a[mem->n-1].info>>32) { // skip contained matches
@@ -350,12 +355,12 @@ int bwt_smem1a(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_intv,
 	return ret;
 }
 
-int bwt_smem1(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_intv, bwtintv_v *mem, bwtintv_v *tmpvec[2])
+int bwt_smem1(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_intv, bwtintv_v *mem, bwtintv_v *tmpvec[2], uint32_t *count)
 {
-	return bwt_smem1a(bwt, len, q, x, min_intv, 0, mem, tmpvec);
+	return bwt_smem1a(bwt, len, q, x, min_intv, 0, mem, tmpvec, count);
 }
 
-int bwt_seed_strategy1(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_len, int max_intv, bwtintv_t *mem)
+int bwt_seed_strategy1(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_len, int max_intv, bwtintv_t *mem, uint32_t *count)
 {
 	int i, c;
 	bwtintv_t ik, ok[4];
@@ -367,6 +372,7 @@ int bwt_seed_strategy1(const bwt_t *bwt, int len, const uint8_t *q, int x, int m
 		if (q[i] < 4) { // an A/C/G/T base
 			c = 3 - q[i]; // complement of q[i]
 			bwt_extend(bwt, &ik, ok, 0);
+			(*count)++;
 			if (ok[c].x[2] < max_intv && i - x >= min_len) {
 				*mem = ok[c];
 				mem->info = (uint64_t)x<<32 | (i + 1);

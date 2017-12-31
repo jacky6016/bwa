@@ -12,6 +12,8 @@
 #include "utils.h"
 #include "bntseq.h"
 #include "kseq.h"
+#include "profile.h"
+
 KSEQ_DECLARE(gzFile)
 
 extern unsigned char nst_nt4_table[256];
@@ -380,6 +382,8 @@ int main_fastmap(int argc, char *argv[])
 	smem_i *itr;
 	const bwtintv_v *a;
 	bwaidx_t *idx;
+	profile_per_read_t * read_profile;
+	memset(read_profile, 0, sizeof(profile_per_read_t));
 
 	while ((c = getopt(argc, argv, "w:l:pi:I:L:")) >= 0) {
 		switch (c) {
@@ -428,7 +432,7 @@ int main_fastmap(int argc, char *argv[])
 						bwtint_t pos;
 						int len, is_rev, ref_id;
 						len  = (uint32_t)p->info - (p->info>>32);
-						pos = bns_depos(idx->bns, bwt_sa(idx->bwt, p->x[0] + k), &is_rev);
+						pos = bns_depos(idx->bns, bwt_sa(idx->bwt, p->x[0] + k, read_profile), &is_rev);
 						if (is_rev) pos -= len - 1;
 						bns_cnt_ambi(idx->bns, pos, len, &ref_id);
 						err_printf("\t%s:%c%ld", idx->bns->anns[ref_id].name, "+-"[is_rev], (long)(pos - idx->bns->anns[ref_id].offset) + 1);

@@ -15,6 +15,7 @@
 #include "kvec.h"
 #include "ksort.h"
 #include "utils.h"
+#include "profile.h"
 
 #ifdef USE_MALLOC_WRAPPERS
 #  include "malloc_wrap.h"
@@ -111,7 +112,7 @@ static void smem_aux_destroy(smem_aux_t *a)
 	free(a);
 }
 
-static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, const uint8_t *seq, smem_aux_t *a)
+static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, const uint8_t *seq, smem_aux_t *a, profile_per_read_t *read_profile)
 {
 	int i, k, x = 0, old_n;
 	int start_width = 1;
@@ -120,7 +121,7 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 	// first pass: find all SMEMs
 	while (x < len) {
 		if (seq[x] < 4) {
-			x = bwt_smem1(bwt, len, seq, x, start_width, &a->mem1, a->tmpv);
+			x = bwt_smem1(bwt, len, seq, x, start_width, &a->mem1, a->tmpv, &(read_profile->p1_extend));
 			for (i = 0; i < a->mem1.n; ++i) {
 				bwtintv_t *p = &a->mem1.a[i];
 				int slen = (uint32_t)p->info - (p->info>>32); // seed length
@@ -135,7 +136,7 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 		bwtintv_t *p = &a->mem.a[k];
 		int start = p->info>>32, end = (int32_t)p->info;
 		if (end - start < split_len || p->x[2] > opt->split_width) continue;
-		bwt_smem1(bwt, len, seq, (start + end)>>1, p->x[2]+1, &a->mem1, a->tmpv);
+		bwt_smem1(bwt, len, seq, (start + end)>>1, p->x[2]+1, &a->mem1, a->tmpv, &(read_profile->p2_extend));
 		for (i = 0; i < a->mem1.n; ++i)
 			if ((uint32_t)a->mem1.a[i].info - (a->mem1.a[i].info>>32) >= opt->min_seed_len)
 				kv_push(bwtintv_t, a->mem, a->mem1.a[i]);
@@ -147,10 +148,10 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 			if (seq[x] < 4) {
 				if (1) {
 					bwtintv_t m;
-					x = bwt_seed_strategy1(bwt, len, seq, x, opt->min_seed_len, opt->max_mem_intv, &m);
+					x = bwt_seed_strategy1(bwt, len, seq, x, opt->min_seed_len, opt->max_mem_intv, &m, &(read_profile->p3_extend));
 					if (m.x[2] > 0) kv_push(bwtintv_t, a->mem, m);
 				} else { // for now, we never come to this block which is slower
-					x = bwt_smem1a(bwt, len, seq, x, start_width, opt->max_mem_intv, &a->mem1, a->tmpv);
+					x = bwt_smem1a(bwt, len, seq, x, start_width, opt->max_mem_intv, &a->mem1, a->tmpv, &(read_profile->p3_extend));
 					for (i = 0; i < a->mem1.n; ++i)
 						kv_push(bwtintv_t, a->mem, a->mem1.a[i]);
 				}
@@ -260,8 +261,12 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 	if (len < opt->min_seed_len) return chain; // if the query is shorter than the seed length, no match
 	tree = kb_init(chn, KB_DEFAULT_SIZE);
 
+	profile_per_read_t *read_profile;
+	memset(read_profile, 0, sizeof(profile_per_read_t));
+	per_read_to_file("per_read_profile.csv");
+
 	aux = buf? (smem_aux_t*)buf : smem_aux_init();
-	mem_collect_intv(opt, bwt, len, seq, aux);
+	mem_collect_intv(opt, bwt, len, seq, aux, read_profile);
 	for (i = 0, b = e = l_rep = 0; i < aux->mem.n; ++i) { // compute frac_rep
 		bwtintv_t *p = &aux->mem.a[i];
 		int sb = (p->info>>32), se = (uint32_t)p->info;
@@ -277,10 +282,11 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 		// if (slen < opt->min_seed_len) continue; // ignore if too short or too repetitive
 		step = p->x[2] > opt->max_occ? p->x[2] / opt->max_occ : 1;
 		for (k = count = 0; k < p->x[2] && count < opt->max_occ; k += step, ++count) {
+			read_profile->num_seeds++;
 			mem_chain_t tmp, *lower, *upper;
 			mem_seed_t s;
 			int rid, to_add = 0;
-			s.rbeg = tmp.pos = bwt_sa(bwt, p->x[0] + k); // this is the base coordinate in the forward-reverse reference
+			s.rbeg = tmp.pos = bwt_sa(bwt, p->x[0] + k, read_profile); // this is the base coordinate in the forward-reverse reference
 			s.qbeg = p->info>>32;
 			s.score= s.len = slen;
 			rid = bns_intv2rid(bns, s.rbeg, s.rbeg + s.len);
@@ -290,6 +296,7 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 				if (!lower || !test_and_merge(opt, l_pac, lower, &s, rid)) to_add = 1;
 			} else to_add = 1;
 			if (to_add) { // add the seed as a new chain
+				read_profile->num_chains++;
 				tmp.n = 1; tmp.m = 4;
 				tmp.seeds = calloc(tmp.m, sizeof(mem_seed_t));
 				tmp.seeds[0] = s;
