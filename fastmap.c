@@ -22,6 +22,8 @@ void *kopen(const char *fn, int *_fd);
 int kclose(void *a);
 void kt_pipeline(int n_threads, void *(*func)(void*, int, void*), void *shared_data, int n_steps);
 
+profile_total_t *total_profile;
+
 typedef struct {
 	kseq_t *ks, *ks2;
 	mem_opt_t *opt;
@@ -125,6 +127,8 @@ int main_mem(int argc, char *argv[])
 	void *ko = 0, *ko2 = 0;
 	mem_pestat_t pes[4];
 	ktp_aux_t aux;
+
+	total_profile = profile_total_init(1, 1000);  // initialize cache for porfiling
 
 	memset(&aux, 0, sizeof(ktp_aux_t));
 	memset(pes, 0, 4 * sizeof(mem_pestat_t));
@@ -364,6 +368,8 @@ int main_mem(int argc, char *argv[])
 	free(opt);
 	bwa_idx_destroy(aux.idx);
 	kseq_destroy(aux.ks);
+	total_to_file("total_profile.csv", total_profile);
+	profile_total_destroy(total_profile);  // destroy total profile structure
 	err_gzclose(fp); kclose(ko);
 	if (aux.ks2) {
 		kseq_destroy(aux.ks2);
@@ -382,7 +388,7 @@ int main_fastmap(int argc, char *argv[])
 	smem_i *itr;
 	const bwtintv_v *a;
 	bwaidx_t *idx;
-	profile_per_read_t * read_profile;
+	profile_per_read_t *read_profile = (profile_per_read_t *)malloc(sizeof(profile_per_read_t));
 	memset(read_profile, 0, sizeof(profile_per_read_t));
 
 	while ((c = getopt(argc, argv, "w:l:pi:I:L:")) >= 0) {

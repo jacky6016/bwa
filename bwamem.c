@@ -261,9 +261,8 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 	if (len < opt->min_seed_len) return chain; // if the query is shorter than the seed length, no match
 	tree = kb_init(chn, KB_DEFAULT_SIZE);
 
-	profile_per_read_t *read_profile;
+	profile_per_read_t *read_profile = (profile_per_read_t *)malloc(sizeof(profile_per_read_t));
 	memset(read_profile, 0, sizeof(profile_per_read_t));
-	per_read_to_file("per_read_profile.csv");
 
 	aux = buf? (smem_aux_t*)buf : smem_aux_init();
 	mem_collect_intv(opt, bwt, len, seq, aux, read_profile);
@@ -318,6 +317,8 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 	if (bwa_verbose >= 4) printf("* fraction of repetitive seeds: %.3f\n", (float)l_rep / len);
 
 	kb_destroy(chn, tree);
+	per_read_to_file("per_read_profile.csv", read_profile);
+	free(read_profile);
 	return chain;
 }
 

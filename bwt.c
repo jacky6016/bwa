@@ -34,10 +34,14 @@
 #include "utils.h"
 #include "bwt.h"
 #include "kvec.h"
+#include "bwamem.c"
+#include "profile.h"
 
 #ifdef USE_MALLOC_WRAPPERS
 #  include "malloc_wrap.h"
 #endif
+
+extern profile_total_t *total_profile;  // global struture for cache profiling
 
 void bwt_gen_cnt_table(bwt_t *bwt)
 {
@@ -90,6 +94,7 @@ bwtint_t bwt_sa(const bwt_t *bwt, bwtint_t k, profile_per_read_t *read_profile)
 		++sa;
 		k = bwt_invPsi(bwt, k);
 		read_profile->inv_psi++;
+
 	}
 	/* without setting bwt->sa[0] = -1, the following line should be
 	   changed to (sa + bwt->sa[k/bwt->sa_intv]) % (bwt->seq_len + 1) */
@@ -116,6 +121,14 @@ bwtint_t bwt_occ(const bwt_t *bwt, bwtint_t k, ubyte_t c)
 
 	// retrieve Occ at k/OCC_INTERVAL
 	n = ((bwtint_t*)(p = bwt_occ_intv(bwt, k)))[c];
+	 
+	total_profile->total_req_sa++;
+	
+	if (cache_lookup(total_profile->sa_lookup_cache, (uint64_t)p >> 6))
+		total_profile->num_hits_sa++;
+	else 
+		cache_insert(total_profile->sa_lookup_cache, (uint64_t)p >> 6);
+		
 	p += sizeof(bwtint_t); // jump to the start of the first BWT cell
 
 	// calculate Occ up to the last k/32
