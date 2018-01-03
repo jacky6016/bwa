@@ -122,6 +122,7 @@ bwtint_t bwt_occ(const bwt_t *bwt, bwtint_t k, ubyte_t c)
 	// retrieve Occ at k/OCC_INTERVAL
 	n = ((bwtint_t*)(p = bwt_occ_intv(bwt, k)))[c];
 	 
+	// cache profiling 
 	total_profile->total_req_sa++;
 	
 	if (cache_lookup(total_profile->sa_lookup_cache, (uint64_t)p >> 6))
@@ -190,6 +191,15 @@ void bwt_occ4(const bwt_t *bwt, bwtint_t k, bwtint_t cnt[4])
 	}
 	k -= (k >= bwt->primary); // because $ is not in bwt
 	p = bwt_occ_intv(bwt, k);
+
+	// cache profiling
+	total_profile->total_req_bwt++;
+	
+	if (cache_lookup(total_profile->occ_lookup_cache, (uint64_t)p >> 6))
+		total_profile->num_hits_bwt++;
+	else 
+		cache_insert(total_profile->occ_lookup_cache, (uint64_t)p >> 6);
+
 	memcpy(cnt, p, 4 * sizeof(bwtint_t));
 	p += sizeof(bwtint_t); // sizeof(bwtint_t) = 4*(sizeof(bwtint_t)/sizeof(uint32_t))
 	end = p + ((k>>4) - ((k&~OCC_INTV_MASK)>>4)); // this is the end point of the following loop
@@ -214,6 +224,15 @@ void bwt_2occ4(const bwt_t *bwt, bwtint_t k, bwtint_t l, bwtint_t cntk[4], bwtin
 		k -= (k >= bwt->primary); // because $ is not in bwt
 		l -= (l >= bwt->primary);
 		p = bwt_occ_intv(bwt, k);
+		
+		// cache profiling
+		total_profile->total_req_bwt++;
+	
+		if (cache_lookup(total_profile->occ_lookup_cache, (uint64_t)p >> 6))
+			total_profile->num_hits_bwt++;
+		else 
+			cache_insert(total_profile->occ_lookup_cache, (uint64_t)p >> 6);
+
 		memcpy(cntk, p, 4 * sizeof(bwtint_t));
 		p += sizeof(bwtint_t); // sizeof(bwtint_t) = 4*(sizeof(bwtint_t)/sizeof(uint32_t))
 		// prepare cntk[]
