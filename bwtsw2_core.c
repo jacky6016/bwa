@@ -274,7 +274,7 @@ static void save_narrow_hits(const bwtl_t *bwtl, bsw2entry_t *u, bwtsw2_t *b1, i
 int bsw2_resolve_duphits(const bntseq_t *bns, const bwt_t *bwt, bwtsw2_t *b, int IS)
 {
 	int i, j, n, is_rev;
-	profile_per_read_t * read_profile;
+	profile_per_read_t * read_profile = (profile_per_read_t *)malloc(sizeof(profile_per_read_t));
 	memset(read_profile, 0, sizeof(profile_per_read_t));
 
 	if (b->n == 0) return 0;

@@ -114,7 +114,7 @@ bwtint_t bwa_sa2pos(const bntseq_t *bns, const bwt_t *bwt, bwtint_t sapos, int r
 {
 	bwtint_t pos_f;
 	int is_rev;
-	profile_per_read_t * read_profile;
+	profile_per_read_t * read_profile = (profile_per_read_t *)malloc(sizeof(profile_per_read_t));
 	memset(read_profile, 0, sizeof(profile_per_read_t));
 
 	*strand = 0; // initialise strand to 0 otherwise we could return without setting it
