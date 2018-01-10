@@ -69,10 +69,13 @@ void per_read_to_file (char *filename, profile_per_read_t* read_profile)
     if (access(filename, F_OK) != -1) {
         // file exists
         fp = fopen(filename, "a");
-        fprintf(fp, "%d,%d,%d,%d,%d,%d\n", read_profile->p1_extend, read_profile->p2_extend, read_profile->p3_extend, read_profile->inv_psi, read_profile->num_seeds, read_profile->num_chains);
+        fprintf(fp, "%d,%d,%d,%d,%d,%d,", read_profile->p1_extend, read_profile->p2_extend, read_profile->p3_extend, read_profile->inv_psi, read_profile->num_seeds, read_profile->num_chains);
+        fprintf(fp, "%lf,", (double)read_profile->extend_time / (double)(read_profile->p1_extend + read_profile->p2_extend + read_profile->p3_extend));
+        fprintf(fp, "%lf,", (double)read_profile->sa_lookup_time / (double)(read_profile->num_seeds));
+        fprintf(fp, "%lf\n", (double)read_profile->chain_time / (double)(read_profile->num_chains));
     } else {
         fp = fopen(filename, "w");
-        fprintf(fp, "p1_extend,p2_extend,p3_extend,inv_psi,num_seeds,num_chains\n");
+        fprintf(fp, "p1_extend,p2_extend,p3_extend,inv_psi,num_seeds,num_chains,extend_time,sa_lookup_time,chain_time\n");
     }
     fclose(fp);
 }

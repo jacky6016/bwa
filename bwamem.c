@@ -8,6 +8,10 @@
 #include <pthread.h>
 #endif
 
+// HACK to stop segmentation fault
+#define _XOPEN_SOURCE 700
+#include <time.h>
+
 #include "kstring.h"
 #include "bwamem.h"
 #include "bntseq.h"
@@ -118,6 +122,11 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 	int start_width = 1;
 	int split_len = (int)(opt->min_seed_len * opt->split_factor + .499);
 	a->mem.n = 0;
+
+	struct timespec *tt1 = (struct timespec *)malloc(sizeof(struct timespec)); 
+	struct timespec *tt2 = (struct timespec *)malloc(sizeof(struct timespec)); 
+	clock_gettime(CLOCK_MONOTONIC, tt1);
+
 	// first pass: find all SMEMs
 	while (x < len) {
 		if (seq[x] < 4) {
@@ -160,6 +169,9 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 	}
 	// sort
 	ks_introsort(mem_intv, a->mem.n, a->mem.a);
+
+	clock_gettime(CLOCK_MONOTONIC, tt2);
+	read_profile->extend_time = tt2->tv_nsec - tt1->tv_nsec;
 }
 
 /************
@@ -256,6 +268,8 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 	mem_chain_v chain;
 	kbtree_t(chn) *tree;
 	smem_aux_t *aux;
+	struct timespec *tt1 = (struct timespec *)malloc(sizeof(struct timespec)); 
+	struct timespec *tt2 = (struct timespec *)malloc(sizeof(struct timespec));
 
 	kv_init(chain);
 	if (len < opt->min_seed_len) return chain; // if the query is shorter than the seed length, no match
@@ -285,9 +299,15 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 			mem_chain_t tmp, *lower, *upper;
 			mem_seed_t s;
 			int rid, to_add = 0;
+			
+			clock_gettime(CLOCK_MONOTONIC, tt1);
 			s.rbeg = tmp.pos = bwt_sa(bwt, p->x[0] + k, read_profile); // this is the base coordinate in the forward-reverse reference
 			s.qbeg = p->info>>32;
 			s.score= s.len = slen;
+			clock_gettime(CLOCK_MONOTONIC, tt2);
+			read_profile->sa_lookup_time += tt2->tv_nsec - tt1->tv_nsec;
+
+			clock_gettime(CLOCK_MONOTONIC, tt1);
 			rid = bns_intv2rid(bns, s.rbeg, s.rbeg + s.len);
 			if (rid < 0) continue; // bridging multiple reference sequences or the forward-reverse boundary; TODO: split the seed; don't discard it!!!
 			if (kb_size(tree)) {
@@ -303,6 +323,8 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 				tmp.is_alt = !!bns->anns[rid].is_alt;
 				kb_putp(chn, tree, &tmp);
 			}
+			clock_gettime(CLOCK_MONOTONIC, tt2);
+			read_profile->chain_time += tt2->tv_nsec - tt1->tv_nsec;
 		}
 	}
 	if (buf == 0) smem_aux_destroy(aux);

@@ -17,6 +17,9 @@ typedef struct {
     uint32_t num_chains;
     uint32_t p1_extend, p2_extend, p3_extend;
     uint32_t inv_psi;
+    long extend_time;
+    long sa_lookup_time;
+    long chain_time;
 } profile_per_read_t;
 
 typedef struct {

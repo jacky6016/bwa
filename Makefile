@@ -12,12 +12,13 @@ AOBJS=		bwashm.o bwase.o bwaseqio.o bwtgap.o bwtaln.o bamlite.o \
 			bwtsw2_chain.o fastmap.o bwtsw2_pair.o profile.o
 PROG=		bwa
 INCLUDES=	
-LIBS=		-lm -lz -lpthread
+LIBS=		-lm -lz -lpthread -lrt 
 SUBDIRS=	.
 
-ifeq ($(shell uname -s),Linux)
-	LIBS += -lrt
-endif
+#we have used clock_gettime()
+# ifeq ($(shell uname -s),Linux)
+#	LIBS += -lrt
+# endif
 
 .SUFFIXES:.c .o .cc
 
